@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <title>Hi, I am a puzzle</title>
+    <script src="https://unpkg.com/lodash"></script>
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="container"></div>
+
+    <script>
+        const TILE_COUNT = 4;
+        const MONK_IMAGE_SRC = "./monks.jpg"
+
+        const containerElement = document.querySelector("#container");
+        const imgElement = document.createElement("img");
+
+        const parsePosition = (element) =>
+            element.style.transform.substring("translate".length).replace("(", "").replace(")", "").replace(/px/g, "").split(", ").map(Number);
+
+        (async () => {
+            // load image
+            const forLoad = new Promise((resolve) => imgElement.onload = resolve);
+            imgElement.src = MONK_IMAGE_SRC;
+            await forLoad;
+
+            // calculate sizing
+            const fullHeight = imgElement.height;
+            const fullWidth = imgElement.width;
+
+            const tileHeight = fullHeight / TILE_COUNT;
+            const tileWidth = fullWidth / TILE_COUNT;
+
+            // lazy, but I am lazy :)
+            const POSITIONS = _.shuffle(Array.from({ length: (TILE_COUNT * TILE_COUNT) - 1 }, (_, index) => index));
+
+            // create the tiles
+            const tiles = [];
+
+            for (let y = 0; y < TILE_COUNT; y++) {
+                for (let x = 0; x < TILE_COUNT; x++) {
+                    const tile = document.createElement("div");
+
+                    // debug id
+                    tile.id = `${x}-${y}`
+
+                    // set sizing
+                    tile.style.height = `${tileHeight}px`
+                    tile.style.width = `${tileWidth}px`;
+
+                    // apply image and clip it
+                    tile.style.backgroundImage = `url(${MONK_IMAGE_SRC})`;
+                    tile.style.backgroundPositionX = `-${tileWidth * x}px`;
+                    tile.style.backgroundPositionY = `-${tileHeight * y}px`;
+
+
+                    // normalize positions
+                    tile.style.position = "absolute";
+                    tile.style.top = "0";
+                    tile.style.left = "0";
+
+                    // set position via translation
+                    if (new URL(document.URL).searchParams.has("noShuffle") || (y === TILE_COUNT - 1 && x === TILE_COUNT - 1)) {
+                        tile.style.transform = `translate(${tileWidth * x}px, ${tileHeight * y}px)`;
+                    } else {
+                        // just don't look here
+                        const position = POSITIONS[(y * TILE_COUNT) + (x)]
+                        const xRand = Math.floor(position / TILE_COUNT);
+                        const yRand = position % TILE_COUNT;
+                        tile.style.transform = `translate(${tileWidth * xRand}px, ${tileHeight * yRand}px)`;
+                    }
+
+                    // add a fancy pants transition
+                    tile.style.transition = `0.1s transform ease-in-out`;
+
+                    tiles.push(tile);
+                }
+            }
+
+            // last tile will always be the collapsed tile
+            const collapsedTile = tiles[tiles.length - 1];
+
+            // add click listener
+            // probably could've just added a single listener to the container
+            // and gotten the clicked element out of that, but laziness :)
+            for (const tile of tiles) {
+                tile.addEventListener("click", () => {
+                    // parse current positions
+                    const [xCollapsed = 0, yCollapsed = 0] = parsePosition(collapsedTile);
+                    const [xInitial = 0, yInitial = 0] = parsePosition(tile);
+
+                    // calculate potential new positions
+                    const topPosition = [xInitial, Math.min(fullHeight, yInitial + tileHeight)];
+                    const rightPosition = [Math.min(fullWidth, xInitial + tileWidth), yInitial];
+                    const bottomPosition = [xInitial, Math.max(0, yInitial - tileHeight)];
+                    const leftPosition = [Math.max(0, xInitial - tileWidth), yInitial];
+
+                    // check if any new potential position matches the collapsed position
+                    if ([topPosition, rightPosition, bottomPosition, leftPosition].some(([x, y]) => xCollapsed === x && yCollapsed === y)) {
+                        // switch clicked and collapsed tile positions
+                        const tempCollapsedTransform = collapsedTile.style.transform;
+                        collapsedTile.style.transform = tile.style.transform;
+                        tile.style.transform = tempCollapsedTransform;
+                    }
+                });
+            }
+
+            // hide last tile
+            collapsedTile.style.visibility = "collapse";
+
+            // setup container sizing
+            containerElement.style.height = `${imgElement.height}px`
+            containerElement.style.width = `${imgElement.width}px`;
+
+            containerElement.append(...tiles);
+        })()
+    </script>
+
+</body>
+
+</html>
